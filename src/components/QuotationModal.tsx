@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Download, FileText, Plus, Trash2, ShoppingCart, Upload, DownloadCloud, Edit2, Printer, Share2 } from 'lucide-react';
+import { X, Download, FileText, Plus, Trash2, ShoppingCart, Upload, DownloadCloud, Edit2, Printer, Share2, MessageCircle, Mail } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
@@ -50,6 +50,8 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
   const [customerDetails, setCustomerDetails] = useState({
     name: 'John Doe',
     address: '456 Residential Complex, City',
+    mobile: '',
+    email: '',
     contactPerson: 'John Doe',
     gst: '',
   });
@@ -74,7 +76,7 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
 
   const [isSharing, setIsSharing] = useState(false);
 
-  const generateShareLink = async () => {
+  const generateShareLink = async (returnUrlOnly = false) => {
     setIsSharing(true);
     try {
       const exportData = {
@@ -91,6 +93,11 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
       const url = new URL(window.location.href);
       url.hash = `data=${compressed}`;
       
+      if (returnUrlOnly) {
+        setIsSharing(false);
+        return url.toString();
+      }
+
       await navigator.clipboard.writeText(url.toString());
       alert('Share link copied to clipboard!');
     } catch (err) {
@@ -99,6 +106,22 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
     } finally {
       setIsSharing(false);
     }
+  };
+
+  const handleWhatsAppShare = async () => {
+    const link = await generateShareLink(true);
+    if (!link) return;
+    const text = `Hello WoodenMax,\n\nI have generated a grill quotation using your online estimator.\n\nCustomer: ${customerDetails.name}\nTotal Amount: Rs. ${grandTotal.toLocaleString('en-IN')}\n\nPlease check my quotation here: ${link}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleEmailInquiry = async () => {
+    const link = await generateShareLink(true);
+    if (!link) return;
+    const subject = `New Grill Quotation Inquiry - ${customerDetails.name}`;
+    const body = `Hello WoodenMax Team,\n\nPlease find my grill quotation details below:\n\nCustomer Name: ${customerDetails.name}\nContact: ${customerDetails.mobile || 'N/A'}\nEmail: ${customerDetails.email || 'N/A'}\nTotal Amount: Rs. ${grandTotal.toLocaleString('en-IN')}\n\nQuotation Link: ${link}\n\nThank you.`;
+    const cc = customerDetails.email ? `&cc=${customerDetails.email}` : '';
+    window.open(`mailto:info@woodenmax.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${cc}`);
   };
 
   const exportJSON = () => {
@@ -195,13 +218,24 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
     yPos += 12;
     doc.text(`Address: ${customerDetails.address}`, 40, yPos);
     yPos += 12;
-    doc.text(`Contact Person: ${customerDetails.contactPerson}`, 40, yPos);
-    if (customerDetails.gst) {
+    if (customerDetails.mobile) {
+      doc.text(`Mobile: ${customerDetails.mobile}`, 40, yPos);
       yPos += 12;
+    }
+    if (customerDetails.email) {
+      doc.text(`Email: ${customerDetails.email}`, 40, yPos);
+      yPos += 12;
+    }
+    if (customerDetails.contactPerson) {
+      doc.text(`Contact Person: ${customerDetails.contactPerson}`, 40, yPos);
+      yPos += 12;
+    }
+    if (customerDetails.gst) {
       doc.text(`GSTIN: ${customerDetails.gst}`, 40, yPos);
+      yPos += 12;
     }
 
-    yPos += 30;
+    yPos += 18;
 
     // --- Items Table ---
     const tableData = items.map((item, index) => {
@@ -312,7 +346,7 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
     doc.text(splitBank, 40, yPos);
 
     try {
-      const upiString = `upi://pay?pa=5020092938110@hdfc0001996.ifsc.npci&pn=WoodenMax%20Architectural%20Elements&am=${grandTotal.toFixed(2)}&cu=INR`;
+      const upiString = `upi://pay?pa=finilexnaseem-3@okicici&pn=WoodenMax%20Architectural%20Elements&am=${grandTotal.toFixed(2)}&cu=INR`;
       const qrDataUrl = await QRCode.toDataURL(upiString, { margin: 1, width: 80 });
       doc.addImage(qrDataUrl, 'PNG', pageWidth / 2 - 40, yPos - 12, 80, 80);
       doc.setFontSize(8);
@@ -384,6 +418,14 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
             
             doc.addImage(imgData, 'PNG', 40, svgY, imgWidth, imgHeight);
             
+            // Add tagline below image
+            const taglineY = svgY + imgHeight + 15;
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            const c = firstItem.config;
+            const tagline = `Outer Frame: ${c.outerProfile}mm | Inner Profile: ${c.innerProfile}mm ${c.innerShape} | Gaps: ${c.gap1}${c.unit} | Pattern: ${c.pattern}`;
+            doc.text(tagline, 40, taglineY);
+
             // List items using this design
             let listY = svgY + 15;
             doc.setFontSize(9);
@@ -397,7 +439,7 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
               listY += 12;
             });
             
-            svgY += Math.max(imgHeight, (group.length * 12) + 30) + 30;
+            svgY += Math.max(imgHeight + 25, (group.length * 12) + 30) + 30;
           }
         } catch (e) {
           console.error('Failed to add SVG to PDF', e);
@@ -489,15 +531,23 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
                 <h3 className="text-sm font-bold text-zinc-800 uppercase tracking-wider mb-4 border-b pb-2">Customer Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-zinc-600 mb-1">Customer Name</label>
-                    <input type="text" value={customerDetails.name} onChange={e => setCustomerDetails({...customerDetails, name: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" />
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Customer Name <span className="text-red-500">*</span></label>
+                    <input type="text" value={customerDetails.name} onChange={e => setCustomerDetails({...customerDetails, name: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" placeholder="Required" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-zinc-600 mb-1">Address</label>
-                    <input type="text" value={customerDetails.address} onChange={e => setCustomerDetails({...customerDetails, address: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" />
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Address <span className="text-red-500">*</span></label>
+                    <input type="text" value={customerDetails.address} onChange={e => setCustomerDetails({...customerDetails, address: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" placeholder="Required" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-zinc-600 mb-1">Contact Person</label>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Mobile (Optional)</label>
+                    <input type="text" value={customerDetails.mobile} onChange={e => setCustomerDetails({...customerDetails, mobile: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Email (Optional)</label>
+                    <input type="email" value={customerDetails.email} onChange={e => setCustomerDetails({...customerDetails, email: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">Contact Person (Optional)</label>
                     <input type="text" value={customerDetails.contactPerson} onChange={e => setCustomerDetails({...customerDetails, contactPerson: e.target.value})} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none" />
                   </div>
                   <div>
@@ -628,21 +678,38 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-zinc-100 bg-zinc-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
+        <div className="p-6 border-t border-zinc-100 bg-zinc-50 flex flex-wrap justify-end gap-3 shrink-0 rounded-b-2xl">
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors">
             Cancel
           </button>
           <button 
             onClick={generateShareLink}
-            disabled={items.length === 0 || isSharing}
+            disabled={items.length === 0 || isSharing || !customerDetails.name || !customerDetails.address}
             className="px-5 py-2.5 text-sm font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Copy Link"
           >
             <Share2 className="w-4 h-4" />
-            {isSharing ? 'Generating...' : 'Share'}
+            {isSharing ? 'Generating...' : 'Link'}
+          </button>
+          <button 
+            onClick={handleWhatsAppShare}
+            disabled={items.length === 0 || isSharing || !customerDetails.name || !customerDetails.address}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <MessageCircle className="w-4 h-4" />
+            WhatsApp
+          </button>
+          <button 
+            onClick={handleEmailInquiry}
+            disabled={items.length === 0 || isSharing || !customerDetails.name || !customerDetails.address}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Mail className="w-4 h-4" />
+            Email Inquiry
           </button>
           <button 
             onClick={printPDF}
-            disabled={items.length === 0}
+            disabled={items.length === 0 || !customerDetails.name || !customerDetails.address}
             className="px-5 py-2.5 text-sm font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Printer className="w-4 h-4" />
@@ -650,7 +717,7 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
           </button>
           <button 
             onClick={generatePDF}
-            disabled={items.length === 0}
+            disabled={items.length === 0 || !customerDetails.name || !customerDetails.address}
             className="px-5 py-2.5 text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
