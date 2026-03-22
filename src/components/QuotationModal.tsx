@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { X, Download, FileText, Plus, Trash2, ShoppingCart, Upload, DownloadCloud, Edit2 } from 'lucide-react';
+import { X, Download, FileText, Plus, Trash2, ShoppingCart, Upload, DownloadCloud, Edit2, Printer, Share2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
+import LZString from 'lz-string';
 
 export interface QuotationItem {
   id: string;
@@ -32,16 +34,17 @@ interface QuotationModalProps {
   onRemoveItem: (id: string) => void;
   onEditItem: (id: string) => void;
   onImportItems: (items: QuotationItem[]) => void;
+  sharedData?: any;
 }
 
-export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, onEditItem, onImportItems }: QuotationModalProps) {
+export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, onEditItem, onImportItems, sharedData }: QuotationModalProps) {
   const [companyDetails, setCompanyDetails] = useState({
     name: 'WoodenMax Architectural Elements',
     address: '5-6-411/413 Aghapura, Nampally, Hyderabad TS-500001',
     gst: '36ARWPA9740L1Z3',
     title: 'QUOTATION',
-    website: 'woodenmax.in, allukraft.com',
-    email: 'info@woodenmax.com, info@allukraft.com',
+    website: 'www.woodenmax.in',
+    email: 'info@woodenmax.in',
   });
 
   const [customerDetails, setCustomerDetails] = useState({
@@ -55,17 +58,61 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
     gstPercent: 18,
     descriptions: 'Supply and installation of custom aluminum grills as per the above specifications.',
     terms: '1. 50% advance along with PO.\n2. Balance against proforma invoice before dispatch.\n3. Validity: 15 days.',
-    bankDetails: 'Bank: HDFC Bank\nA/C Name: ALLUKRAFT\nA/C No: 1234567890\nIFSC: HDFC0001234',
+    bankDetails: 'Account Name: WoodenMax Architectural Elements\nAccount Number: 5020092938110\nIFSC Code: HDFC0001996\nBranch: hyderaguda Hyderabad',
     signatory: 'Authorized Signatory',
   });
 
+  React.useEffect(() => {
+    if (sharedData) {
+      if (sharedData.companyDetails) setCompanyDetails(sharedData.companyDetails);
+      if (sharedData.customerDetails) setCustomerDetails(sharedData.customerDetails);
+      if (sharedData.metaDetails) setMetaDetails(sharedData.metaDetails);
+    }
+  }, [sharedData]);
+
   const previewRef = useRef<HTMLDivElement>(null);
 
+  const [isSharing, setIsSharing] = useState(false);
+
+  const generateShareLink = async () => {
+    setIsSharing(true);
+    try {
+      const exportData = {
+        version: 2,
+        items,
+        companyDetails,
+        customerDetails,
+        metaDetails
+      };
+      
+      const jsonString = JSON.stringify(exportData);
+      const compressed = LZString.compressToEncodedURIComponent(jsonString);
+      
+      const url = new URL(window.location.href);
+      url.hash = `data=${compressed}`;
+      
+      await navigator.clipboard.writeText(url.toString());
+      alert('Share link copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to generate share link:', err);
+      alert('Failed to generate share link. The data might be too large.');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const exportJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items));
+    const exportData = {
+      version: 2,
+      items,
+      companyDetails,
+      customerDetails,
+      metaDetails
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `quotation_backup_${new Date().getTime()}.json`);
+    downloadAnchorNode.setAttribute("download", `woodenmax_quotation_backup_${new Date().getTime()}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -77,9 +124,14 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const importedItems = JSON.parse(event.target?.result as string);
-        if (Array.isArray(importedItems)) {
-          onImportItems(importedItems);
+        const data = JSON.parse(event.target?.result as string);
+        if (Array.isArray(data)) {
+          onImportItems(data);
+        } else if (data.version === 2) {
+          onImportItems(data.items || []);
+          if (data.companyDetails) setCompanyDetails(data.companyDetails);
+          if (data.customerDetails) setCustomerDetails(data.customerDetails);
+          if (data.metaDetails) setMetaDetails(data.metaDetails);
         }
       } catch (err) {
         alert("Invalid JSON file");
@@ -99,7 +151,7 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
   const gstAmount = (totalBeforeGST * metaDetails.gstPercent) / 100;
   const grandTotal = totalBeforeGST + gstAmount;
 
-  const generatePDF = async () => {
+  const buildPDF = async () => {
     const doc = new jsPDF('p', 'pt', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     let yPos = 40;
@@ -256,14 +308,26 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
     yPos += 12;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    const splitBank = doc.splitTextToSize(metaDetails.bankDetails, pageWidth - 80);
+    const splitBank = doc.splitTextToSize(metaDetails.bankDetails, pageWidth / 2 - 60);
     doc.text(splitBank, 40, yPos);
+
+    try {
+      const upiString = `upi://pay?pa=5020092938110@hdfc0001996.ifsc.npci&pn=WoodenMax%20Architectural%20Elements&am=${grandTotal.toFixed(2)}&cu=INR`;
+      const qrDataUrl = await QRCode.toDataURL(upiString, { margin: 1, width: 80 });
+      doc.addImage(qrDataUrl, 'PNG', pageWidth / 2 - 40, yPos - 12, 80, 80);
+      doc.setFontSize(8);
+      doc.text('Scan to Pay', pageWidth / 2, yPos + 75, { align: 'center' });
+    } catch (err) {
+      console.error("Error generating QR code", err);
+    }
+
+    yPos += Math.max(splitBank.length * 12, 80) + 20;
 
     // Signatory
     doc.setFont('helvetica', 'bold');
-    doc.text(`For ${companyDetails.name}`, pageWidth - 40, yPos + 20, { align: 'right' });
+    doc.text(`For ${companyDetails.name}`, pageWidth - 40, yPos, { align: 'right' });
     doc.setFont('helvetica', 'normal');
-    doc.text(metaDetails.signatory, pageWidth - 40, yPos + 60, { align: 'right' });
+    doc.text(metaDetails.signatory, pageWidth - 40, yPos + 40, { align: 'right' });
 
     // --- Add SVGs at the end ---
     if (items.length > 0) {
@@ -344,7 +408,20 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
       }
     }
 
-    doc.save('Quotation.pdf');
+    return doc;
+  };
+
+  const generatePDF = async () => {
+    const doc = await buildPDF();
+    const fileName = `Quotation_${customerDetails.name ? customerDetails.name.replace(/\s+/g, '_') : 'Customer'}.pdf`;
+    doc.save(fileName);
+  };
+
+  const printPDF = async () => {
+    const doc = await buildPDF();
+    doc.autoPrint();
+    const blobUrl = doc.output('bloburl');
+    window.open(blobUrl, '_blank');
   };
 
   return (
@@ -554,6 +631,22 @@ export default function QuotationModal({ isOpen, onClose, items, onRemoveItem, o
         <div className="p-6 border-t border-zinc-100 bg-zinc-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors">
             Cancel
+          </button>
+          <button 
+            onClick={generateShareLink}
+            disabled={items.length === 0 || isSharing}
+            className="px-5 py-2.5 text-sm font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Share2 className="w-4 h-4" />
+            {isSharing ? 'Generating...' : 'Share'}
+          </button>
+          <button 
+            onClick={printPDF}
+            disabled={items.length === 0}
+            className="px-5 py-2.5 text-sm font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Printer className="w-4 h-4" />
+            Print
           </button>
           <button 
             onClick={generatePDF}

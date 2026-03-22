@@ -136,28 +136,51 @@ const TypewriterLabel = ({ text, suffix = null, delay = 0, className = "" }: { t
   const [isTyping, setIsTyping] = useState(true);
   
   useEffect(() => {
-    setDisplayedText('');
-    setIsTyping(true);
     let i = 0;
-    const timer = setTimeout(() => {
-      const interval = setInterval(() => {
+    let isDeleting = false;
+    let timeoutId: NodeJS.Timeout;
+
+    const type = () => {
+      if (!isDeleting) {
         setDisplayedText(text.slice(0, i + 1));
         i++;
-        if (i >= text.length) {
-          clearInterval(interval);
+        if (i > text.length) {
+          isDeleting = true;
           setIsTyping(false);
+          timeoutId = setTimeout(type, 3000); // Pause at the end
+        } else {
+          setIsTyping(true);
+          timeoutId = setTimeout(type, 60); // Typing speed
         }
-      }, 40);
-      return () => clearInterval(interval);
+      } else {
+        setDisplayedText(text.slice(0, i - 1));
+        i--;
+        if (i === 0) {
+          isDeleting = false;
+          setIsTyping(true);
+          timeoutId = setTimeout(type, 500); // Pause before re-typing
+        } else {
+          setIsTyping(true);
+          timeoutId = setTimeout(type, 30); // Deleting speed
+        }
+      }
+    };
+
+    const initialTimer = setTimeout(() => {
+      type();
     }, delay);
-    return () => clearTimeout(timer);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearTimeout(timeoutId);
+    };
   }, [text, delay]);
 
   return (
     <span className={className}>
       {displayedText}
       {suffix}
-      {isTyping && <span className="animate-pulse ml-[2px] inline-block w-[2px] h-[1em] bg-emerald-500 align-middle"></span>}
+      <span className={`ml-[2px] inline-block w-[2px] h-[1em] bg-emerald-500 align-middle ${isTyping ? 'animate-pulse' : 'opacity-0'}`}></span>
     </span>
   );
 };
@@ -207,7 +230,43 @@ export default function App() {
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [showAddedFeedback, setShowAddedFeedback] = useState(false);
+  const [sharedData, setSharedData] = useState<any>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#data=')) {
+      try {
+        const compressed = hash.substring(6);
+        const jsonString = (window as any).LZString ? (window as any).LZString.decompressFromEncodedURIComponent(compressed) : null;
+        if (!jsonString) {
+          // Fallback if LZString is not globally available, we need to import it
+          import('lz-string').then((LZString) => {
+            const decompressed = LZString.default.decompressFromEncodedURIComponent(compressed);
+            if (decompressed) {
+              const data = JSON.parse(decompressed);
+              if (data.version === 2) {
+                setQuotationItems(data.items || []);
+                setSharedData(data);
+                setIsQuotationModalOpen(true);
+              }
+            }
+          });
+        } else {
+          const data = JSON.parse(jsonString);
+          if (data.version === 2) {
+            setQuotationItems(data.items || []);
+            setSharedData(data);
+            setIsQuotationModalOpen(true);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to parse shared data from URL", err);
+      }
+      // Clean up the hash
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
 
   // Handle shape change to reset profile
   const handleShapeChange = (shape: 'rect' | 'round' | 'oval') => {
@@ -633,7 +692,7 @@ export default function App() {
       <header className="bg-zinc-900 text-white py-6 px-4 sm:px-8 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">ALLUKRAFT</h1>
+            <h1 className="text-3xl font-bold tracking-tight">WoodenMax</h1>
             <p className="text-zinc-400 text-sm mt-1 uppercase tracking-widest">Crafting premium outdoor living</p>
           </div>
           <div className="hidden sm:flex items-center space-x-4">
@@ -646,7 +705,7 @@ export default function App() {
             </button>
             <div className="flex items-center space-x-2 text-zinc-400 bg-zinc-800 px-4 py-2 rounded-full">
               <Calculator className="w-4 h-4" />
-              <span className="text-sm font-medium">Grill Calculator Pro</span>
+              <span className="text-sm font-medium">WoodenMax Grill Calculator</span>
             </div>
           </div>
         </div>
@@ -667,6 +726,7 @@ export default function App() {
                   <h2 className="text-lg font-semibold">Grill Details & Dimensions</h2>
                 </div>
                 <select 
+                  title="Select the unit of measurement for dimensions (e.g., inches, mm, cm)"
                   value={unit} 
                   onChange={(e) => setUnit(e.target.value as any)}
                   className="px-2 py-1 bg-zinc-100 border border-zinc-200 rounded-md text-xs font-medium outline-none focus:ring-2 focus:ring-zinc-900"
@@ -683,11 +743,13 @@ export default function App() {
                 <div className="col-span-12 sm:col-span-5">
                   <label className="block text-sm font-medium text-zinc-600 mb-1">Grill Name / Location</label>
                   <input type="text" placeholder="e.g. Balcony Grill" value={grillName} onChange={(e) => setGrillName(e.target.value)}
+                    title="Enter a descriptive name for this grill (e.g., Balcony Grill)"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div className="col-span-12 sm:col-span-3">
                   <label className="block text-sm font-medium text-zinc-600 mb-1">Coating Color</label>
                   <input type="text" placeholder="e.g. Matte Black" value={coatingColor} onChange={(e) => setCoatingColor(e.target.value)}
+                    title="Enter the desired powder coating color or finish"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div className="col-span-12 sm:col-span-4">
@@ -710,6 +772,7 @@ export default function App() {
                 <div className="col-span-12 sm:col-span-2">
                   <label className="block text-sm font-medium text-zinc-600 mb-1">Quantity</label>
                   <input type="number" min="1" value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} onFocus={handleFocus}
+                    title="Enter the number of identical grills needed"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div className="col-span-12 sm:col-span-6">
@@ -726,6 +789,7 @@ export default function App() {
                       </button>
                     </div>
                     <input type="number" min="0" value={discountValue || ''} onChange={(e) => setDiscountValue(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))} onFocus={handleFocus}
+                      title="Enter the discount amount or percentage to apply"
                       className="w-full flex-1 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                   </div>
                 </div>
@@ -735,11 +799,13 @@ export default function App() {
                 <div>
                   <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Width" suffix={` (${unit})`} /></label>
                   <input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value) || 0)} onFocus={handleFocus}
+                    title="Enter the total width of the grill"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Height" suffix={` (${unit})`} /></label>
                   <input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value) || 0)} onFocus={handleFocus}
+                    title="Enter the total height of the grill"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
               </div>
@@ -793,6 +859,7 @@ export default function App() {
                     <div>
                       <label className="block text-xs font-medium text-zinc-500 mb-1">Profile (mm)</label>
                       <select value={outerProfile} onChange={(e) => setOuterProfile(e.target.value)}
+                        title="Select the size of the outer aluminum frame profile"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
                         {OUTER_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
@@ -800,6 +867,7 @@ export default function App() {
                     <div>
                       <label className="block text-xs font-medium text-zinc-500 mb-1">Wall Thick (mm)</label>
                       <select value={outerThickness} onChange={(e) => setOuterThickness(Number(e.target.value))}
+                        title="Select the wall thickness of the outer frame profile"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
                         {THICKNESSES.map(t => <option key={t} value={t}>{t} mm</option>)}
                       </select>
@@ -825,6 +893,7 @@ export default function App() {
                     <div>
                       <label className="block text-xs font-medium text-zinc-500 mb-1">Profile (mm)</label>
                       <select value={innerProfile} onChange={(e) => setInnerProfile(e.target.value)}
+                        title="Select the size of the inner aluminum pipes"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
                         {innerShape === 'rect' && INNER_RECT_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
                         {innerShape === 'round' && INNER_ROUND_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
@@ -834,6 +903,7 @@ export default function App() {
                     <div>
                       <label className="block text-xs font-medium text-zinc-500 mb-1">Wall Thick (mm)</label>
                       <select value={innerThickness} onChange={(e) => setInnerThickness(Number(e.target.value))}
+                        title="Select the wall thickness of the inner pipes"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
                         {THICKNESSES.map(t => <option key={t} value={t}>{t} mm</option>)}
                       </select>
@@ -849,6 +919,7 @@ export default function App() {
                         type="checkbox"
                         id="hasDividers"
                         checked={hasDividers}
+                        title="Check this to add intermediate support dividers using the outer profile"
                         onChange={(e) => setHasDividers(e.target.checked)}
                         className="w-4 h-4 text-emerald-600 rounded border-zinc-300 focus:ring-emerald-500"
                       />
@@ -865,6 +936,7 @@ export default function App() {
                           <label className="block text-xs font-medium text-zinc-500 mb-1">Layout</label>
                           <select 
                             value={dividerLayout} 
+                            title="Choose how the dividers should be positioned (equally spaced or custom center gap)"
                             onChange={(e) => setDividerLayout(e.target.value as 'equal' | 'center')}
                             className="w-full px-2 py-1.5 bg-white border border-zinc-200 rounded-md text-sm focus:ring-2 focus:ring-zinc-900 outline-none"
                           >
@@ -879,6 +951,7 @@ export default function App() {
                             min="1"
                             max="20"
                             value={dividerCount}
+                            title="Enter the number of intermediate dividers"
                             onChange={(e) => setDividerCount(Math.max(1, parseInt(e.target.value) || 1))}
                             className="w-full px-2 py-1.5 bg-white border border-zinc-200 rounded-md text-sm focus:ring-2 focus:ring-zinc-900 outline-none"
                             onFocus={handleFocus}
@@ -894,6 +967,7 @@ export default function App() {
                             step="0.1"
                             min="0"
                             value={dividerCenterGap}
+                            title="Enter the specific gap size for the center section"
                             onChange={(e) => setDividerCenterGap(Math.max(0, Number(e.target.value) || 0))}
                             className="w-full px-2 py-1.5 bg-white border border-zinc-200 rounded-md text-sm focus:ring-2 focus:ring-zinc-900 outline-none"
                             onFocus={handleFocus}
@@ -912,6 +986,7 @@ export default function App() {
                   <div>
                     <label className="block text-xs font-medium text-zinc-500 mb-1">Rod Size (mm)</label>
                     <select value={rodSize} onChange={(e) => setRodSize(Number(e.target.value))}
+                      title="Select the diameter of the threaded iron rod to insert inside inner pipes for extra strength"
                       className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
                       {ROD_SIZES.map(r => <option key={r} value={r}>{r === 0 ? 'None' : `${r} mm`}</option>)}
                     </select>
@@ -970,6 +1045,7 @@ export default function App() {
                       </label>
                       <div className="relative">
                         <input type="number" step="0.1" value={gap1} onChange={(e) => setGap1(Number(e.target.value) || 0)} onFocus={handleFocus}
+                          title="Enter the primary gap size between inner pipes"
                           className="w-full pl-3 pr-7 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all text-sm" />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400">{unit}</span>
                       </div>
@@ -979,6 +1055,7 @@ export default function App() {
                         <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider">Gap 2</label>
                         <div className="relative">
                           <input type="number" step="0.1" value={gap2} onChange={(e) => setGap2(Number(e.target.value) || 0)} onFocus={handleFocus}
+                            title="Enter the secondary gap size for alternating patterns"
                             className="w-full pl-3 pr-7 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all text-sm" />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400">{unit}</span>
                         </div>
@@ -989,6 +1066,7 @@ export default function App() {
                         <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider">Gap 3</label>
                         <div className="relative">
                           <input type="number" step="0.1" value={gap3} onChange={(e) => setGap3(Number(e.target.value) || 0)} onFocus={handleFocus}
+                            title="Enter the tertiary gap size for 3-gap alternating patterns"
                             className="w-full pl-3 pr-7 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all text-sm" />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400">{unit}</span>
                         </div>
@@ -1240,6 +1318,7 @@ export default function App() {
         isOpen={isQuotationModalOpen} 
         onClose={() => setIsQuotationModalOpen(false)} 
         items={quotationItems} 
+        sharedData={sharedData}
         onRemoveItem={handleRemoveItem}
         onEditItem={handleEditItem}
         onImportItems={handleImportItems}
