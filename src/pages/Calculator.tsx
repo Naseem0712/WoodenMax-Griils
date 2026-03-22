@@ -131,60 +131,7 @@ const calculateBins = (lengths: number[], binSize: number) => {
   return bins.length;
 };
 
-const TypewriterLabel = ({ text, suffix = null, delay = 0, className = "" }: { text: string, suffix?: React.ReactNode, delay?: number, className?: string }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const [isTyping, setIsTyping] = useState(true);
-  
-  useEffect(() => {
-    let i = 0;
-    let isDeleting = false;
-    let timeoutId: NodeJS.Timeout;
-
-    const type = () => {
-      if (!isDeleting) {
-        setDisplayedText(text.slice(0, i + 1));
-        i++;
-        if (i > text.length) {
-          isDeleting = true;
-          setIsTyping(false);
-          timeoutId = setTimeout(type, 3000); // Pause at the end
-        } else {
-          setIsTyping(true);
-          timeoutId = setTimeout(type, 60); // Typing speed
-        }
-      } else {
-        setDisplayedText(text.slice(0, i - 1));
-        i--;
-        if (i === 0) {
-          isDeleting = false;
-          setIsTyping(true);
-          timeoutId = setTimeout(type, 500); // Pause before re-typing
-        } else {
-          setIsTyping(true);
-          timeoutId = setTimeout(type, 30); // Deleting speed
-        }
-      }
-    };
-
-    const initialTimer = setTimeout(() => {
-      type();
-    }, delay);
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearTimeout(timeoutId);
-    };
-  }, [text, delay]);
-
-  return (
-    <span className={className}>
-      {displayedText}
-      {suffix}
-      <span className={`ml-[2px] inline-block w-[2px] h-[1em] bg-emerald-500 align-middle ${isTyping ? 'animate-pulse' : 'opacity-0'}`}></span>
-    </span>
-  );
-};
-
+import { TypewriterLabel } from '../components/TypewriterLabel';
 import { Helmet } from 'react-helmet-async';
 
 export default function CalculatorApp() {
@@ -770,19 +717,19 @@ export default function CalculatorApp() {
               
               <div className="grid grid-cols-12 gap-4 mb-4">
                 <div className="col-span-12 sm:col-span-5">
-                  <label className="block text-sm font-medium text-zinc-600 mb-1">Grill Name / Location</label>
+                  <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Grill Name / Location" /></label>
                   <input type="text" placeholder="e.g. Balcony Grill" value={grillName} onChange={(e) => setGrillName(e.target.value)}
                     title="Enter a descriptive name for this grill (e.g., Balcony Grill)"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div className="col-span-12 sm:col-span-3">
-                  <label className="block text-sm font-medium text-zinc-600 mb-1">Coating Color</label>
+                  <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Coating Color" /></label>
                   <input type="text" placeholder="e.g. Matte Black" value={coatingColor} onChange={(e) => setCoatingColor(e.target.value)}
                     title="Enter the desired powder coating color or finish"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div className="col-span-12 sm:col-span-4">
-                  <label className="block text-sm font-medium text-zinc-600 mb-1">Coating Finish</label>
+                  <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Coating Finish" /></label>
                   <div className="flex rounded-lg p-1 bg-zinc-100">
                     <button onClick={() => setCoatingFinish('plain')}
                       className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${coatingFinish === 'plain' ? 'bg-white shadow-sm text-zinc-900' : 'text-zinc-500 hover:text-zinc-700'}`}>
@@ -799,13 +746,13 @@ export default function CalculatorApp() {
                   </div>
                 </div>
                 <div className="col-span-12 sm:col-span-2">
-                  <label className="block text-sm font-medium text-zinc-600 mb-1">Quantity</label>
+                  <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Quantity" /></label>
                   <input type="number" min="1" value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} onFocus={handleFocus}
                     title="Enter the number of identical grills needed"
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 outline-none transition-all" />
                 </div>
                 <div className="col-span-12 sm:col-span-6">
-                  <label className="block text-sm font-medium text-zinc-600 mb-1">Discount</label>
+                  <label className="block text-sm font-medium text-zinc-600 mb-1"><TypewriterLabel text="Discount" /></label>
                   <div className="flex gap-2">
                     <div className="flex rounded-lg p-1 bg-zinc-100 flex-1">
                       <button onClick={() => setDiscountType('percentage')}
@@ -886,7 +833,7 @@ export default function CalculatorApp() {
                   <h3 className="text-sm font-semibold mb-3 text-zinc-700">Outer Frame</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500 mb-1">Profile (mm)</label>
+                      <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Profile" suffix=" (mm)" /></label>
                       <select value={outerProfile} onChange={(e) => setOuterProfile(e.target.value)}
                         title="Select the size of the outer aluminum frame profile"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
@@ -894,7 +841,7 @@ export default function CalculatorApp() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500 mb-1">Wall Thick (mm)</label>
+                      <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Wall Thick" suffix=" (mm)" /></label>
                       <select value={outerThickness} onChange={(e) => setOuterThickness(Number(e.target.value))}
                         title="Select the wall thickness of the outer frame profile"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
@@ -908,7 +855,7 @@ export default function CalculatorApp() {
                 <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-100">
                   <h3 className="text-sm font-semibold mb-3 text-zinc-700">Inner Pipes</h3>
                   <div className="mb-3">
-                    <label className="block text-xs font-medium text-zinc-500 mb-1">Shape</label>
+                    <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Shape" /></label>
                     <div className="flex rounded-lg p-1 bg-zinc-200/50">
                       {(['rect', 'round', 'oval'] as const).map(shape => (
                         <button key={shape} onClick={() => handleShapeChange(shape)}
@@ -920,7 +867,7 @@ export default function CalculatorApp() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500 mb-1">Profile (mm)</label>
+                      <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Profile" suffix=" (mm)" /></label>
                       <select value={innerProfile} onChange={(e) => setInnerProfile(e.target.value)}
                         title="Select the size of the inner aluminum pipes"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
@@ -930,7 +877,7 @@ export default function CalculatorApp() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500 mb-1">Wall Thick (mm)</label>
+                      <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Wall Thick" suffix=" (mm)" /></label>
                       <select value={innerThickness} onChange={(e) => setInnerThickness(Number(e.target.value))}
                         title="Select the wall thickness of the inner pipes"
                         className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
@@ -962,7 +909,7 @@ export default function CalculatorApp() {
                     <div className="pl-6 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-zinc-500 mb-1">Layout</label>
+                          <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Layout" /></label>
                           <select 
                             value={dividerLayout} 
                             title="Choose how the dividers should be positioned (equally spaced or custom center gap)"
@@ -974,7 +921,7 @@ export default function CalculatorApp() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-zinc-500 mb-1">Count</label>
+                          <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Count" /></label>
                           <input
                             type="number"
                             min="1"
@@ -990,7 +937,7 @@ export default function CalculatorApp() {
                       
                       {dividerLayout === 'center' && dividerCount > 1 && (
                         <div>
-                          <label className="block text-xs font-medium text-zinc-500 mb-1">Gap Between Supports ({unit})</label>
+                          <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Gap Between Supports" suffix={` (${unit})`} /></label>
                           <input
                             type="number"
                             step="0.1"
@@ -1013,7 +960,7 @@ export default function CalculatorApp() {
                     <Hammer className="w-4 h-4" /> <TypewriterLabel text="Threaded / Iron Rods" />
                   </h3>
                   <div>
-                    <label className="block text-xs font-medium text-zinc-500 mb-1">Rod Size (mm)</label>
+                    <label className="block text-xs font-medium text-zinc-500 mb-1"><TypewriterLabel text="Rod Size" suffix=" (mm)" /></label>
                     <select value={rodSize} onChange={(e) => setRodSize(Number(e.target.value))}
                       title="Select the diameter of the threaded iron rod to insert inside inner pipes for extra strength"
                       className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:ring-2 focus:ring-zinc-900 outline-none">
@@ -1034,7 +981,7 @@ export default function CalculatorApp() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-600 mb-2">Direction</label>
+                  <label className="block text-sm font-medium text-zinc-600 mb-2"><TypewriterLabel text="Direction" /></label>
                   <div className="flex rounded-lg p-1 bg-zinc-100">
                     <button onClick={() => setPattern('vertical')}
                       className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${pattern === 'vertical' ? 'bg-white shadow-sm text-zinc-900' : 'text-zinc-500 hover:text-zinc-700'}`}>
@@ -1049,7 +996,7 @@ export default function CalculatorApp() {
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-zinc-600">Gap Style</label>
+                    <label className="block text-sm font-medium text-zinc-600"><TypewriterLabel text="Gap Style" /></label>
                     <span className="text-[10px] text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Auto-adjusted to fit perfectly</span>
                   </div>
                   <div className="flex rounded-lg p-1 bg-zinc-100 mb-3">
@@ -1070,7 +1017,7 @@ export default function CalculatorApp() {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider">
-                        {gapType === 'uniform' ? 'Gap Size' : 'Gap 1'}
+                        <TypewriterLabel text={gapType === 'uniform' ? 'Gap Size' : 'Gap 1'} />
                       </label>
                       <div className="relative">
                         <input type="number" step="0.1" value={gap1} onChange={(e) => setGap1(Number(e.target.value) || 0)} onFocus={handleFocus}
@@ -1081,7 +1028,7 @@ export default function CalculatorApp() {
                     </div>
                     {gapType !== 'uniform' && (
                       <div>
-                        <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider">Gap 2</label>
+                        <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider"><TypewriterLabel text="Gap 2" /></label>
                         <div className="relative">
                           <input type="number" step="0.1" value={gap2} onChange={(e) => setGap2(Number(e.target.value) || 0)} onFocus={handleFocus}
                             title="Enter the secondary gap size for alternating patterns"
@@ -1092,7 +1039,7 @@ export default function CalculatorApp() {
                     )}
                     {gapType === 'alternating3' && (
                       <div>
-                        <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider">Gap 3</label>
+                        <label className="block text-[10px] font-medium text-zinc-500 mb-1 uppercase tracking-wider"><TypewriterLabel text="Gap 3" /></label>
                         <div className="relative">
                           <input type="number" step="0.1" value={gap3} onChange={(e) => setGap3(Number(e.target.value) || 0)} onFocus={handleFocus}
                             title="Enter the tertiary gap size for 3-gap alternating patterns"
